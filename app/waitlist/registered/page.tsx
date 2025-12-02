@@ -5,12 +5,13 @@
 
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function WaitlistRegisteredPage() {
+function WaitlistRegisteredContent() {
   const searchParams = useSearchParams();
   const position = searchParams.get('position') || '未定';
 
@@ -139,5 +140,24 @@ export default function WaitlistRegisteredPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function WaitlistFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin h-8 w-8 border-4 border-purple-600 border-t-transparent rounded-full mx-auto"></div>
+        <p className="mt-4 text-gray-600">読み込み中...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function WaitlistRegisteredPage() {
+  return (
+    <Suspense fallback={<WaitlistFallback />}>
+      <WaitlistRegisteredContent />
+    </Suspense>
   );
 }
