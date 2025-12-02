@@ -10,14 +10,27 @@
 
 import Stripe from "stripe";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not defined in environment variables");
+// ビルド時に環境変数がなくてもエラーにならないよう、遅延初期化
+let stripeClient: Stripe | null = null;
+
+function getStripeClient(): Stripe {
+  if (!stripeClient) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is not defined in environment variables");
+    }
+    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-11-17.clover" as Stripe.LatestApiVersion,
+      typescript: true,
+    });
+  }
+  return stripeClient;
 }
 
-// Stripe クライアント初期化
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-11-17.clover",
-  typescript: true,
+// 後方互換性のためのexport（実行時に初期化）
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    return getStripeClient()[prop as keyof Stripe];
+  },
 });
 
 // 定数定義
