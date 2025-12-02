@@ -1,0 +1,396 @@
+// Prisma Schema for とちまち (Tochimachi)
+// 300社限定 B2B2C プラットフォーム
+// Generated: 2025-12-02
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// ユーザー・認証関連
+// ========================================
+
+/// 顧客ユーザー（一般会員）
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  phone        String?
+  prefecture   String // 栃木県の市町村
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  // Relations
+  inquiries    Inquiry[]
+  inquiryItems InquiryItem[]
+  carts        Cart[]
+
+  @@index([email])
+  @@index([createdAt(sort: Desc)])
+  @@map("users")
+}
+
+// ========================================
+// 業者・サービス関連
+// ========================================
+
+/// 登録業者（300社限定）
+model Vendor {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  companyName  String    @map("company_name")
+  categoryId   String    @map("category_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  approvedAt   DateTime? @map("approved_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  displayOrder Int       @unique @map("display_order") // 1-300
+
+  // Relations
+  category         Category          @relation(fields: [categoryId], references: [id])
+  profile          VendorProfile?
+  services         Service[]
+  inquiries        Inquiry[]
+  subscription     Subscription?
+  instagramAccount InstagramAccount?
+  cartItems        CartItem[]
+
+  @@index([email])
+  @@index([categoryId])
+  @@index([displayOrder])
+  @@index([approvedAt, isActive])
+  @@map("vendors")
+}
+
+/// 業者プロフィール詳細（1:1）
+model VendorProfile {
+  id            String   @id @default(uuid())
+  vendorId      String   @unique @map("vendor_id")
+  description   String?  @db.Text
+  logoUrl       String?  @map("logo_url")
+  coverImageUrl String?  @map("cover_image_url")
+  businessHours Json?    @map("business_hours") // {"mon": "9:00-18:00", ...}
+  address       String
+  mapUrl        String?  @map("map_url")
+  websiteUrl    String?  @map("website_url")
+  contactPhone  String   @map("contact_phone")
+  gallery       Json? // ["url1", "url2", ...]
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@map("vendor_profiles")
+}
+
+/// 業種カテゴリ
+model Category {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  slug         String   @unique
+  description  String?  @db.Text
+  iconUrl      String?  @map("icon_url")
+  displayOrder Int      @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  vendors   Vendor[]
+  waitlists Waitlist[]
+
+  @@index([slug])
+  @@index([displayOrder])
+  @@map("categories")
+}
+
+/// サービス・料金メニュー
+model Service {
+  id          String   @id @default(uuid())
+  vendorId    String   @map("vendor_id")
+  name        String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  unit        String // "1時間", "1回", etc.
+  duration    Int? // 分単位
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vendor       Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  inquiryItems InquiryItem[]
+  cartItems    CartItem[]
+
+  @@index([vendorId])
+  @@index([vendorId, isActive])
+  @@map("services")
+}
+
+// ========================================
+// 問い合わせ・カート関連
+// ========================================
+
+/// カート（ゲスト・ログインユーザー両対応）
+model Cart {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id") // nullable for guest users
+  sessionId String   @unique @map("session_id") // cookie-based session ID
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  expiresAt DateTime @map("expires_at") // 7日間有効期限
+
+  // Relations
+  user  User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("carts")
+}
+
+/// カートアイテム
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String   @map("cart_id")
+  vendorId  String   @map("vendor_id")
+  serviceId String?  @map("service_id") // optional: サービス指定なしも可能
+  quantity  Int      @default(1)
+  notes     String?  @db.Text // お客様のメモ
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  cart    Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  vendor  Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  @@index([cartId])
+  @@index([vendorId])
+  @@index([serviceId])
+  @@map("cart_items")
+}
+
+/// 問い合わせ（カート機能含む）
+model Inquiry {
+  id          String        @id @default(uuid())
+  userId      String?       @map("user_id") // nullable for guest
+  vendorId    String        @map("vendor_id")
+  status      InquiryStatus @default(DRAFT)
+  guestName   String?       @map("guest_name")
+  guestEmail  String?       @map("guest_email")
+  guestPhone  String?       @map("guest_phone")
+  message     String        @db.Text
+  vendorReply String?       @map("vendor_reply") @db.Text
+  repliedAt   DateTime?     @map("replied_at")
+  submittedAt DateTime?     @map("submitted_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user   User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vendor Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  items  InquiryItem[]
+
+  @@index([userId])
+  @@index([vendorId, status])
+  @@index([guestEmail])
+  @@map("inquiries")
+}
+
+/// 問い合わせステータス
+enum InquiryStatus {
+  DRAFT // カート状態（未送信）
+  SUBMITTED // 送信済み（業者未返信）
+  REPLIED // 業者返信済み
+  CLOSED // 完了・クローズ
+}
+
+/// 問い合わせ明細（カートアイテム）
+model InquiryItem {
+  id           String   @id @default(uuid())
+  inquiryId    String   @map("inquiry_id")
+  serviceId    String?  @map("service_id") // nullable (削除対応)
+  serviceName  String   @map("service_name") // スナップショット
+  servicePrice Decimal  @map("service_price") @db.Decimal(10, 2) // スナップショット
+  quantity     Int      @default(1)
+  note         String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  inquiry Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId  String?  @map("user_id")
+
+  @@index([inquiryId])
+  @@index([serviceId])
+  @@map("inquiry_items")
+}
+
+// ========================================
+// 課金・サブスクリプション
+// ========================================
+
+/// 月額課金情報（12万円/月）
+model Subscription {
+  id                   String             @id @default(uuid())
+  vendorId             String             @unique @map("vendor_id")
+  plan                 SubscriptionPlan   @default(STANDARD)
+  monthlyFee           Decimal            @map("monthly_fee") @db.Decimal(10, 2) // 120,000円
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  nextBillingDate      DateTime           @map("next_billing_date")
+  cancelledAt          DateTime?          @map("cancelled_at")
+  paymentHistory       Json?              @map("payment_history") // [{"date": "...", "amount": "..."}]
+
+  // Stripe連携フィールド
+  stripeCustomerId     String?            @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  stripePriceId        String?            @map("stripe_price_id")
+  stripeProductId      String?            @map("stripe_product_id")
+  paymentMethodId      String?            @map("payment_method_id") // カード情報
+  lastPaymentStatus    String?            @map("last_payment_status") // succeeded, failed, etc.
+  lastPaymentAt        DateTime?          @map("last_payment_at")
+  failedPaymentCount   Int                @default(0) @map("failed_payment_count")
+
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([nextBillingDate, status])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
+}
+
+/// サブスクリプションプラン
+enum SubscriptionPlan {
+  STANDARD // 月額12万円固定
+}
+
+/// サブスクリプションステータス
+enum SubscriptionStatus {
+  ACTIVE // 課金中
+  SUSPENDED // 一時停止
+  CANCELLED // 解約済み
+}
+
+// ========================================
+// SNS連携
+// ========================================
+
+/// Instagram連携情報
+model InstagramAccount {
+  id                String    @id @default(uuid())
+  vendorId          String    @unique @map("vendor_id")
+  instagramUsername String    @map("instagram_username")
+  accessToken       String?   @map("access_token") // 暗号化保存
+  lastSyncAt        DateTime? @map("last_sync_at")
+  syncedPosts       Json?     @map("synced_posts")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([lastSyncAt])
+  @@map("instagram_accounts")
+}
+
+// ========================================
+// 管理者
+// ========================================
+
+/// システム管理者
+model Admin {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@map("admins")
+}
+
+/// 管理者権限
+enum AdminRole {
+  SUPER_ADMIN // 全機能アクセス可能
+  ADMIN // 業者管理・問い合わせ対応
+  VIEWER // 閲覧のみ
+}
+
+// ========================================
+// ウェイトリスト・枠管理
+// ========================================
+
+/// ウェイトリスト（300社枠満員時の待機リスト）
+model Waitlist {
+  id          String         @id @default(uuid())
+  email       String         @unique
+  companyName String         @map("company_name")
+  categoryId  String         @map("category_id")
+  message     String?        @db.Text // 申込理由・メッセージ
+  position    Int // 待機順番（自動採番）
+  status      WaitlistStatus @default(WAITING)
+  notifiedAt  DateTime?      @map("notified_at") // 空き通知送信日時
+  expiresAt   DateTime?      @map("expires_at") // 登録期限（通知後7日間）
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@index([email])
+  @@index([categoryId, status])
+  @@index([position])
+  @@index([status, notifiedAt])
+  @@map("waitlists")
+}
+
+/// ウェイトリストステータス
+enum WaitlistStatus {
+  WAITING // 待機中
+  NOTIFIED // 空き通知済み（登録期限内）
+  PROMOTED // 繰り上げ登録済み（Vendorへ移行完了）
+  EXPIRED // 登録期限切れ
+  CANCELLED // キャンセル
+}
+
+/// 枠管理ログ（監査用）
+model CapacityLog {
+  id             String   @id @default(uuid())
+  action         String // "vendor_registered", "vendor_cancelled", "waitlist_promoted"
+  vendorCount    Int      @map("vendor_count") // アクション時の業者数
+  waitlistCount  Int      @map("waitlist_count") // アクション時のウェイトリスト数
+  categoryId     String?  @map("category_id")
+  relatedId      String?  @map("related_id") // VendorID or WaitlistID
+  performedBy    String?  @map("performed_by") // Admin ID
+  metadata       Json? // 追加情報
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([action, createdAt])
+  @@index([categoryId])
+  @@map("capacity_logs")
+}

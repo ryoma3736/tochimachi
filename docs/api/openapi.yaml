@@ -1,0 +1,1502 @@
+openapi: 3.0.3
+info:
+  title: とちまち (Tochimachi) API
+  description: |
+    栃木県ポータルサイト「とちまち」のRESTful API仕様書
+
+    ## 認証について
+    - 業者向けAPI: Bearer Tokenによる認証が必要
+    - 管理者API: JWT認証 + RBAC (Role-Based Access Control)
+    - 顧客向けAPI: 認証不要（一部エンドポイントはセッション認証）
+
+    ## レート制限
+    - 認証なし: 100 requests/hour
+    - 認証済み: 1000 requests/hour
+    - 管理者: 制限なし
+
+    ## エラーハンドリング
+    すべてのエラーレスポンスは以下の形式に従います:
+    ```json
+    {
+      "error": {
+        "code": "ERROR_CODE",
+        "message": "Human-readable error message",
+        "details": {}
+      }
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: Tochimachi API Support
+    email: api@tochimachi.jp
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.tochimachi.jp/v1
+    description: Production server
+  - url: https://staging-api.tochimachi.jp/v1
+    description: Staging server
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+tags:
+  - name: Categories
+    description: カテゴリ管理（ヘアサロン、不動産、飲食店など）
+  - name: Vendors
+    description: 業者情報の検索・表示
+  - name: Services
+    description: サービス情報
+  - name: Inquiries
+    description: 問い合わせ管理
+  - name: Cart
+    description: カート機能
+  - name: Vendor Auth
+    description: 業者認証・登録
+  - name: Vendor Management
+    description: 業者管理機能
+  - name: Instagram
+    description: Instagram連携
+  - name: Admin
+    description: 管理者機能
+  - name: Analytics
+    description: 分析データ
+
+paths:
+  # =========================================
+  # 顧客向けAPI
+  # =========================================
+
+  /categories:
+    get:
+      summary: カテゴリ一覧取得
+      description: すべてのカテゴリを取得します（ヘアサロン、不動産、飲食店など）
+      operationId: getCategories
+      tags:
+        - Categories
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+              example:
+                data:
+                  - id: "cat_001"
+                    name: "ヘアサロン"
+                    slug: "hair-salon"
+                    icon: "✂️"
+                    description: "美容院、理容室などのヘアサロン"
+                    vendorCount: 45
+                    createdAt: "2025-01-01T00:00:00Z"
+                  - id: "cat_002"
+                    name: "不動産"
+                    slug: "real-estate"
+                    icon: "🏠"
+                    description: "賃貸、売買、管理会社など"
+                    vendorCount: 32
+                    createdAt: "2025-01-01T00:00:00Z"
+                meta:
+                  total: 15
+                  page: 1
+                  limit: 10
+
+  /vendors:
+    get:
+      summary: 業者検索・一覧取得
+      description: |
+        業者を検索・フィルタリングして取得します。
+        カテゴリ、エリア、価格帯などで絞り込み可能。
+      operationId: getVendors
+      tags:
+        - Vendors
+      parameters:
+        - name: category
+          in: query
+          description: カテゴリSlug（例: hair-salon）
+          schema:
+            type: string
+        - name: area
+          in: query
+          description: エリア（例: 宇都宮市）
+          schema:
+            type: string
+        - name: priceRange
+          in: query
+          description: 価格帯（例: 5000-10000）
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: キーワード検索
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: ソート基準
+          schema:
+            type: string
+            enum: [rating, createdAt, price, popularity]
+            default: rating
+        - name: page
+          in: query
+          description: ページ番号
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: 1ページあたりの件数
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vendor'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /vendors/{vendorId}:
+    get:
+      summary: 業者詳細取得
+      description: 指定された業者の詳細情報を取得します
+      operationId: getVendorById
+      tags:
+        - Vendors
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          description: 業者ID
+          schema:
+            type: string
+            example: "vendor_001"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VendorDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /vendors/{vendorId}/services:
+    get:
+      summary: サービス一覧取得
+      description: 指定された業者のサービス一覧を取得します
+      operationId: getVendorServices
+      tags:
+        - Services
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          description: 業者ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /vendors/{vendorId}/instagram:
+    get:
+      summary: Instagram投稿取得
+      description: 業者のInstagram投稿を取得します（連携済みの場合）
+      operationId: getVendorInstagramPosts
+      tags:
+        - Instagram
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          description: 業者ID
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: 取得件数
+          schema:
+            type: integer
+            default: 12
+            maximum: 50
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InstagramPost'
+                  meta:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                      followersCount:
+                        type: integer
+                      isConnected:
+                        type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inquiries:
+    post:
+      summary: 一括問い合わせ送信
+      description: |
+        複数の業者に一括で問い合わせを送信します。
+        カート内の業者に対して同一内容を送信可能。
+      operationId: createInquiry
+      tags:
+        - Inquiries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InquiryRequest'
+      responses:
+        '201':
+          description: 問い合わせ送信成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      inquiryId:
+                        type: string
+                      vendorIds:
+                        type: array
+                        items:
+                          type: string
+                      status:
+                        type: string
+                        enum: [sent, pending]
+                      createdAt:
+                        type: string
+                        format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /cart:
+    get:
+      summary: カート取得
+      description: 現在のセッションのカート内容を取得します
+      operationId: getCart
+      tags:
+        - Cart
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Cart'
+
+  /cart/items:
+    post:
+      summary: カートに業者追加
+      description: カートに業者を追加します（問い合わせ対象として）
+      operationId: addToCart
+      tags:
+        - Cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vendorId
+              properties:
+                vendorId:
+                  type: string
+                  description: 追加する業者ID
+                serviceId:
+                  type: string
+                  description: オプション：特定サービスを指定
+      responses:
+        '201':
+          description: 追加成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Cart'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /cart/items/{cartItemId}:
+    delete:
+      summary: カートから削除
+      description: カートから業者を削除します
+      operationId: removeFromCart
+      tags:
+        - Cart
+      parameters:
+        - name: cartItemId
+          in: path
+          required: true
+          description: カートアイテムID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # =========================================
+  # 業者向けAPI
+  # =========================================
+
+  /auth/vendor/register:
+    post:
+      summary: 業者登録
+      description: 新規業者アカウントを登録します
+      operationId: registerVendor
+      tags:
+        - Vendor Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegisterRequest'
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      vendorId:
+                        type: string
+                      status:
+                        type: string
+                        enum: [pending, approved]
+                      message:
+                        type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: メールアドレスまたは業者名が既に存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/vendor/login:
+    post:
+      summary: 業者ログイン
+      description: 業者アカウントでログインしてアクセストークンを取得
+      operationId: vendorLogin
+      tags:
+        - Vendor Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: ログイン成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      refreshToken:
+                        type: string
+                      expiresIn:
+                        type: integer
+                      vendorId:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /vendor/profile:
+    get:
+      summary: プロフィール取得
+      description: ログイン中の業者のプロフィール情報を取得
+      operationId: getVendorProfile
+      tags:
+        - Vendor Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VendorProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: プロフィール更新
+      description: 業者プロフィール情報を更新
+      operationId: updateVendorProfile
+      tags:
+        - Vendor Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorProfileUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/VendorProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /vendor/services:
+    get:
+      summary: サービス管理一覧
+      description: 自社のサービス一覧を取得
+      operationId: getMyServices
+      tags:
+        - Vendor Management
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: サービス追加
+      description: 新しいサービスを追加
+      operationId: createService
+      tags:
+        - Vendor Management
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCreateRequest'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /vendor/inquiries:
+    get:
+      summary: 問い合わせ一覧
+      description: 自社に届いた問い合わせ一覧を取得
+      operationId: getVendorInquiries
+      tags:
+        - Vendor Management
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: ステータスでフィルタ
+          schema:
+            type: string
+            enum: [unread, read, replied]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InquiryReceived'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /vendor/instagram/connect:
+    post:
+      summary: Instagram連携
+      description: Instagram アカウントを連携
+      operationId: connectInstagram
+      tags:
+        - Instagram
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - accessToken
+              properties:
+                accessToken:
+                  type: string
+                  description: Instagram OAuth access token
+                username:
+                  type: string
+      responses:
+        '200':
+          description: 連携成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      isConnected:
+                        type: boolean
+                      username:
+                        type: string
+                      profilePictureUrl:
+                        type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # =========================================
+  # 管理者API
+  # =========================================
+
+  /admin/vendors:
+    get:
+      summary: 業者管理一覧
+      description: すべての業者を管理者が閲覧
+      operationId: adminGetVendors
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: 承認ステータスでフィルタ
+          schema:
+            type: string
+            enum: [pending, approved, rejected, suspended]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VendorAdmin'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/vendors/{vendorId}/approve:
+    put:
+      summary: 業者承認
+      description: 業者登録申請を承認
+      operationId: approveVendor
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: vendorId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+                  description: 却下理由（rejectedの場合必須）
+      responses:
+        '200':
+          description: 処理成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      vendorId:
+                        type: string
+                      status:
+                        type: string
+                      updatedAt:
+                        type: string
+                        format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/subscriptions:
+    get:
+      summary: 課金管理一覧
+      description: すべての課金・サブスクリプション情報を取得
+      operationId: adminGetSubscriptions
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, expired, canceled]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/analytics:
+    get:
+      summary: 分析データ取得
+      description: サイト全体の分析データ（PV、CV、売上など）を取得
+      operationId: getAnalytics
+      tags:
+        - Analytics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: metric
+          in: query
+          description: 取得するメトリクス
+          schema:
+            type: string
+            enum: [pageviews, inquiries, revenue, vendors]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Analytics'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/waitlist:
+    get:
+      summary: ウェイトリスト取得
+      description: サービス開始前のウェイトリスト登録者を取得
+      operationId: getWaitlist
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WaitlistEntry'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# =========================================
+# コンポーネント定義
+# =========================================
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer Token認証
+
+  schemas:
+    # 共通スキーマ
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "Validation failed"
+            details:
+              type: object
+              additionalProperties: true
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 総件数
+        page:
+          type: integer
+          description: 現在のページ番号
+        limit:
+          type: integer
+          description: 1ページあたりの件数
+        totalPages:
+          type: integer
+          description: 総ページ数
+
+    # カテゴリ
+    Category:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+      properties:
+        id:
+          type: string
+          example: "cat_001"
+        name:
+          type: string
+          example: "ヘアサロン"
+        slug:
+          type: string
+          example: "hair-salon"
+        icon:
+          type: string
+          example: "✂️"
+        description:
+          type: string
+        vendorCount:
+          type: integer
+          description: このカテゴリの業者数
+        createdAt:
+          type: string
+          format: date-time
+
+    # 業者
+    Vendor:
+      type: object
+      required:
+        - id
+        - name
+        - category
+      properties:
+        id:
+          type: string
+          example: "vendor_001"
+        name:
+          type: string
+          example: "美容室サンプル"
+        category:
+          $ref: '#/components/schemas/Category'
+        area:
+          type: string
+          example: "宇都宮市"
+        rating:
+          type: number
+          format: float
+          example: 4.5
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+          example: 128
+        thumbnailUrl:
+          type: string
+          format: uri
+        priceRange:
+          type: string
+          example: "¥¥"
+          enum: ["¥", "¥¥", "¥¥¥"]
+        isInstagramConnected:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["駐車場あり", "キッズルーム"]
+
+    VendorDetail:
+      allOf:
+        - $ref: '#/components/schemas/Vendor'
+        - type: object
+          properties:
+            description:
+              type: string
+            address:
+              type: string
+            phone:
+              type: string
+            email:
+              type: string
+              format: email
+            website:
+              type: string
+              format: uri
+            openingHours:
+              type: object
+              additionalProperties:
+                type: string
+              example:
+                monday: "9:00-18:00"
+                tuesday: "9:00-18:00"
+                wednesday: "定休日"
+            images:
+              type: array
+              items:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  caption:
+                    type: string
+            services:
+              type: array
+              items:
+                $ref: '#/components/schemas/Service'
+            reviews:
+              type: array
+              items:
+                $ref: '#/components/schemas/Review'
+
+    # サービス
+    Service:
+      type: object
+      required:
+        - id
+        - name
+        - price
+      properties:
+        id:
+          type: string
+          example: "svc_001"
+        name:
+          type: string
+          example: "カット＆カラー"
+        description:
+          type: string
+        price:
+          type: integer
+          example: 8000
+          description: 価格（円）
+        duration:
+          type: integer
+          example: 90
+          description: 所要時間（分）
+        imageUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+
+    # レビュー
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        customerName:
+          type: string
+          example: "匿名ユーザー"
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # Instagram投稿
+    InstagramPost:
+      type: object
+      properties:
+        id:
+          type: string
+        mediaType:
+          type: string
+          enum: [IMAGE, VIDEO, CAROUSEL_ALBUM]
+        mediaUrl:
+          type: string
+          format: uri
+        caption:
+          type: string
+        permalink:
+          type: string
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+        likeCount:
+          type: integer
+        commentCount:
+          type: integer
+
+    # 問い合わせ
+    InquiryRequest:
+      type: object
+      required:
+        - vendorIds
+        - name
+        - email
+        - message
+      properties:
+        vendorIds:
+          type: array
+          items:
+            type: string
+          description: 問い合わせ先業者IDリスト
+        name:
+          type: string
+          example: "山田太郎"
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        message:
+          type: string
+          example: "見積もりをお願いします"
+        preferredDate:
+          type: string
+          format: date
+          description: 希望日（オプション）
+
+    InquiryReceived:
+      type: object
+      properties:
+        id:
+          type: string
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerPhone:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [unread, read, replied]
+        preferredDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    # カート
+    Cart:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              vendor:
+                $ref: '#/components/schemas/Vendor'
+              service:
+                $ref: '#/components/schemas/Service'
+              addedAt:
+                type: string
+                format: date-time
+        totalItems:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    # 業者登録
+    VendorRegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - categoryId
+        - area
+      properties:
+        name:
+          type: string
+          example: "美容室サンプル"
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        categoryId:
+          type: string
+        area:
+          type: string
+          example: "宇都宮市"
+        phone:
+          type: string
+        address:
+          type: string
+        description:
+          type: string
+
+    # 業者プロフィール
+    VendorProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        area:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        website:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected, suspended]
+        subscriptionPlan:
+          type: string
+          enum: [free, basic, premium]
+        isInstagramConnected:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VendorProfileUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        website:
+          type: string
+        openingHours:
+          type: object
+          additionalProperties:
+            type: string
+
+    # サービス作成
+    ServiceCreateRequest:
+      type: object
+      required:
+        - name
+        - price
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+          minimum: 0
+        duration:
+          type: integer
+          minimum: 0
+        imageUrl:
+          type: string
+          format: uri
+
+    # 管理者用業者情報
+    VendorAdmin:
+      allOf:
+        - $ref: '#/components/schemas/VendorProfile'
+        - type: object
+          properties:
+            totalInquiries:
+              type: integer
+            totalRevenue:
+              type: integer
+            lastLoginAt:
+              type: string
+              format: date-time
+
+    # サブスクリプション
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        vendorId:
+          type: string
+        plan:
+          type: string
+          enum: [free, basic, premium]
+        status:
+          type: string
+          enum: [active, expired, canceled]
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        amount:
+          type: integer
+        nextBillingDate:
+          type: string
+          format: date
+
+    # 分析データ
+    Analytics:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            startDate:
+              type: string
+              format: date
+            endDate:
+              type: string
+              format: date
+        metrics:
+          type: object
+          properties:
+            totalPageviews:
+              type: integer
+            totalInquiries:
+              type: integer
+            totalRevenue:
+              type: integer
+            activeVendors:
+              type: integer
+            newVendors:
+              type: integer
+        chartData:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              value:
+                type: number
+
+    # ウェイトリスト
+    WaitlistEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        businessType:
+          type: string
+        area:
+          type: string
+        status:
+          type: string
+          enum: [pending, contacted, converted]
+        createdAt:
+          type: string
+          format: date-time
+
+  # 共通レスポンス
+  responses:
+    BadRequest:
+      description: Bad Request - 不正なリクエスト
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "VALIDATION_ERROR"
+              message: "Validation failed"
+              details:
+                field: "email"
+                reason: "Invalid email format"
+
+    Unauthorized:
+      description: Unauthorized - 認証が必要
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "UNAUTHORIZED"
+              message: "Authentication required"
+
+    Forbidden:
+      description: Forbidden - 権限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "FORBIDDEN"
+              message: "You don't have permission to access this resource"
+
+    NotFound:
+      description: Not Found - リソースが見つからない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Resource not found"
+
+    RateLimitExceeded:
+      description: Too Many Requests - レート制限超過
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: "RATE_LIMIT_EXCEEDED"
+              message: "Too many requests. Please try again later."
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: リクエスト上限数
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: 残りリクエスト数
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: リセット時刻（Unix timestamp）

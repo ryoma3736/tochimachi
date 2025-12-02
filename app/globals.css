@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* とちまちカスタムカラー - オレンジ系（温かみ） */
+    --tochimachi-orange-50: 24 100% 97%; /* #fff7ed */
+    --tochimachi-orange-100: 24 100% 93%; /* #ffedd5 */
+    --tochimachi-orange-200: 25 100% 88%; /* #fed7aa */
+    --tochimachi-orange-300: 25 97% 80%; /* #fdba74 */
+    --tochimachi-orange-400: 25 95% 70%; /* #fb923c */
+    --tochimachi-orange-500: 25 95% 53%; /* #f97316 */
+    --tochimachi-orange-600: 21 90% 48%; /* #ea580c */
+    --tochimachi-orange-700: 17 88% 40%; /* #c2410c */
+    --tochimachi-orange-800: 15 79% 34%; /* #9a3412 */
+    --tochimachi-orange-900: 13 81% 29%; /* #7c2d12 */
+
+    /* とちまちカスタムカラー - ブラウン系（落ち着き） */
+    --tochimachi-brown-50: 30 67% 94%; /* #fef3e2 */
+    --tochimachi-brown-100: 30 56% 91%; /* #fde8c7 */
+    --tochimachi-brown-200: 30 48% 84%; /* #f9d7a1 */
+    --tochimachi-brown-300: 30 46% 68%; /* #f4b772 */
+    --tochimachi-brown-400: 28 80% 52%; /* #ea9a3e */
+    --tochimachi-brown-500: 25 75% 47%; /* #d97706 */
+    --tochimachi-brown-600: 30 60% 30%; /* #78350f */
+    --tochimachi-brown-700: 30 70% 15%; /* #451a03 */
+    --tochimachi-brown-800: 24 45% 20%; /* #3e2723 */
+    --tochimachi-brown-900: 20 45% 15%; /* #2d1b13 */
+
+    /* shadcn/ui ベースカラー（オレンジテーマに調整） */
+    --background: 0 0% 100%;
+    --foreground: 13 81% 29%; /* brown-900 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 13 81% 29%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 13 81% 29%;
+
+    --primary: 25 95% 53%; /* orange-500 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 100% 93%; /* orange-100 */
+    --secondary-foreground: 13 81% 29%;
+
+    --muted: 30 67% 94%; /* brown-50 */
+    --muted-foreground: 30 60% 30%; /* brown-600 */
+
+    --accent: 24 100% 88%; /* orange-200 */
+    --accent-foreground: 15 79% 34%; /* orange-800 */
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 48% 84%; /* brown-200 */
+    --input: 30 48% 84%;
+    --ring: 25 95% 53%; /* orange-500 */
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* ダークモード（オレンジ・ブラウンを基調とした温かみのあるダークテーマ） */
+    --background: 20 45% 15%; /* brown-900 dark */
+    --foreground: 30 67% 94%; /* brown-50 */
+
+    --card: 24 45% 20%; /* brown-800 */
+    --card-foreground: 30 67% 94%;
+
+    --popover: 24 45% 20%;
+    --popover-foreground: 30 67% 94%;
+
+    --primary: 25 95% 53%; /* orange-500 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 60% 30%; /* brown-600 */
+    --secondary-foreground: 30 67% 94%;
+
+    --muted: 24 45% 20%; /* brown-800 */
+    --muted-foreground: 30 48% 84%; /* brown-200 */
+
+    --accent: 17 88% 40%; /* orange-700 */
+    --accent-foreground: 30 67% 94%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 60% 30%; /* brown-600 */
+    --input: 30 60% 30%;
+    --ring: 25 95% 53%; /* orange-500 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "palt" 1; /* 日本語フォント最適化 */
+  }
+
+  /* 見出しスタイル */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-semibold text-foreground;
+  }
+
+  /* リンクスタイル */
+  a {
+    @apply text-primary hover:text-primary/90 transition-colors;
+  }
+
+  /* フォーカススタイル */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* スクロールバースタイル */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border hover:bg-foreground/20 rounded-full;
+  }
+}
+
+@layer components {
+  /* カスタムコンポーネントスタイル */
+  .btn-warm {
+    @apply bg-tochimachi-orange-500 text-white hover:bg-tochimachi-orange-600
+           shadow-warm transition-all duration-200 hover:shadow-soft-lg;
+  }
+
+  .card-warm {
+    @apply bg-card border border-border rounded-2xl shadow-soft
+           hover:shadow-soft-lg transition-shadow duration-200;
+  }
+
+  .section-spacing {
+    @apply py-12 px-4 md:py-16 lg:py-20;
+  }
+
+  .container-narrow {
+    @apply container max-w-4xl mx-auto;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer utilities {
+  /* ユーティリティクラス */
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-600 {
+    animation-delay: 600ms;
+  }
+}

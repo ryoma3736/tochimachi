@@ -1,0 +1,290 @@
+# とちまち - 栃木県地域ポータルサイト
+
+栃木県の魅力を発信する地域ポータルサイト。イベント情報、お店情報、観光スポットなど、栃木県の最新情報をお届けします。
+
+## 技術スタック
+
+### フロントエンド
+
+- **Next.js 14** (App Router) - React Server Components
+- **React 18** - UIライブラリ
+- **TypeScript** - 型安全な開発
+- **Tailwind CSS** - ユーティリティファーストCSS
+- **shadcn/ui** - アクセシブルなUIコンポーネント
+
+### バックエンド
+
+- **Next.js API Routes** - サーバーレスAPI
+- **Prisma** - 型安全なORM
+- **PostgreSQL** (Supabase) - リレーショナルデータベース
+- **NextAuth.js** - 認証システム
+
+### 外部サービス
+
+- **Vercel** - ホスティング・デプロイ
+- **Supabase** - データベース・認証
+- **Cloudinary** - 画像管理
+- **SendGrid** - メール送信
+- **Stripe** - 決済処理
+
+## 開発環境のセットアップ
+
+### 前提条件
+
+- Node.js 20.x 以上
+- npm または pnpm
+- PostgreSQL（ローカル開発の場合）
+
+### インストール
+
+```bash
+# リポジトリをクローン
+git clone https://github.com/ryoma3736/tochimachi.git
+cd tochimachi
+
+# 依存関係をインストール
+npm install
+
+# 環境変数を設定
+cp .env.example .env.local
+# .env.local を編集して必要な環境変数を設定
+```
+
+### 環境変数の設定
+
+`.env.local` ファイルに以下の環境変数を設定してください：
+
+```bash
+# Database
+DATABASE_URL="postgresql://..."
+DIRECT_URL="postgresql://..."
+
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="..." # openssl rand -base64 32 で生成
+
+# Google OAuth
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME="..."
+CLOUDINARY_API_KEY="..."
+CLOUDINARY_API_SECRET="..."
+
+# SendGrid
+SENDGRID_API_KEY="..."
+
+# Stripe
+STRIPE_SECRET_KEY="..."
+STRIPE_PUBLISHABLE_KEY="..."
+```
+
+### データベースのセットアップ
+
+```bash
+# Prisma クライアント生成
+npm run db:generate
+
+# マイグレーション実行
+npm run db:migrate
+
+# シードデータ投入（任意）
+npm run db:seed
+```
+
+### 開発サーバーの起動
+
+```bash
+# 開発モードで起動
+npm run dev
+
+# ブラウザで http://localhost:3000 を開く
+```
+
+## スクリプト
+
+### 開発
+
+```bash
+npm run dev          # 開発サーバー起動
+npm run build        # プロダクションビルド
+npm run start        # プロダクションサーバー起動
+npm test             # テスト実行
+npm run lint         # ESLint実行
+npm run format       # Prettierでコード整形
+npm run typecheck    # TypeScript型チェック
+```
+
+### データベース
+
+```bash
+npm run db:generate  # Prismaクライアント生成
+npm run db:migrate   # マイグレーション実行
+npm run db:push      # スキーマをDBに直接反映（開発用）
+npm run db:seed      # シードデータ投入
+npm run db:studio    # Prisma Studio起動
+npm run db:reset     # データベースリセット
+```
+
+## プロジェクト構造
+
+```
+tochimachi/
+├── app/                     # Next.js App Router
+│   ├── (auth)/             # 認証関連ページ
+│   ├── (main)/             # メインコンテンツ
+│   ├── api/                # API Routes
+│   ├── actions/            # Server Actions
+│   ├── layout.tsx          # ルートレイアウト
+│   └── page.tsx            # ホームページ
+│
+├── components/             # Reactコンポーネント
+│   ├── ui/                 # shadcn/ui コンポーネント
+│   ├── layouts/            # レイアウト
+│   ├── events/             # イベント関連
+│   └── shops/              # お店関連
+│
+├── lib/                    # ビジネスロジック
+│   ├── services/           # サービス層
+│   ├── validations/        # バリデーション
+│   └── utils/              # ユーティリティ
+│
+├── prisma/                 # Prisma設定
+│   ├── schema.prisma       # データベーススキーマ
+│   └── migrations/         # マイグレーション
+│
+├── public/                 # 静的ファイル
+│
+├── docs/                   # ドキュメント
+│   └── architecture/       # アーキテクチャ設計書
+│       ├── TECH_STACK.md
+│       └── SYSTEM_ARCHITECTURE.md
+│
+└── tests/                  # テスト
+```
+
+## 主な機能
+
+### MVP（最小限の機能）
+
+- [x] ユーザー認証（Google OAuth）
+- [ ] イベント情報の掲載
+- [ ] お店情報の掲載
+- [ ] お気に入り機能
+- [ ] レビュー機能
+- [ ] 検索・フィルタリング
+
+### Phase 2（拡張機能）
+
+- [ ] 管理画面
+- [ ] 有料プラン（Stripe決済）
+- [ ] メール通知
+- [ ] リアルタイム更新
+- [ ] モバイルアプリ対応
+
+## 開発ガイドライン
+
+### コーディング規約
+
+- **TypeScript**: strictモードを使用
+- **命名規則**: camelCase（変数・関数）、PascalCase（コンポーネント・型）
+- **コンポーネント**: 関数コンポーネントを使用
+- **スタイリング**: Tailwind CSSユーティリティクラス
+- **状態管理**: Zustand（グローバル状態）、useState/useReducer（ローカル状態）
+
+### Git ワークフロー
+
+```bash
+# フィーチャーブランチを作成
+git checkout -b feature/your-feature-name
+
+# コミット（Conventional Commits形式）
+git commit -m "feat: add event list page"
+
+# プッシュ
+git push origin feature/your-feature-name
+
+# Pull Request作成
+gh pr create --title "Add event list page" --body "..."
+```
+
+### コミットメッセージ形式
+
+- `feat:` 新機能
+- `fix:` バグ修正
+- `docs:` ドキュメント変更
+- `style:` コードスタイル変更（フォーマット等）
+- `refactor:` リファクタリング
+- `test:` テスト追加・修正
+- `chore:` ビルドプロセスやツール変更
+
+## デプロイ
+
+### Vercel（推奨）
+
+1. Vercelアカウントを作成
+2. GitHubリポジトリを接続
+3. 環境変数を設定
+4. デプロイ
+
+```bash
+# Vercel CLIでデプロイ
+npm i -g vercel
+vercel
+```
+
+### 環境別設定
+
+- **開発**: `.env.local`
+- **プレビュー**: Vercel環境変数（Preview）
+- **本番**: Vercel環境変数（Production）
+
+## トラブルシューティング
+
+### ビルドエラー
+
+```bash
+# node_modulesとキャッシュを削除
+rm -rf node_modules .next
+npm install
+npm run build
+```
+
+### データベース接続エラー
+
+```bash
+# Prismaクライアントを再生成
+npm run db:generate
+
+# マイグレーションを確認
+npm run db:migrate
+```
+
+### 型エラー
+
+```bash
+# 型チェックを実行
+npm run typecheck
+
+# Next.js型定義を再生成
+npm run dev # 一度起動すると.next/types/が生成される
+```
+
+## ドキュメント
+
+- [技術スタック選定書](/docs/architecture/TECH_STACK.md)
+- [システムアーキテクチャ設計書](/docs/architecture/SYSTEM_ARCHITECTURE.md)
+
+## ライセンス
+
+MIT
+
+## 開発チーム
+
+- **開発**: Miyabi Autonomous Agents
+- **プロジェクトオーナー**: ryoma3736
+
+---
+
+✨ Generated by [Miyabi](https://github.com/ShunsukeHayashi/Miyabi) - AI-driven development framework
